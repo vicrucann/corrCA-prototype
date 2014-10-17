@@ -5,7 +5,6 @@
 #include "spline.h"
 #include "correction.h"
 
-#include "demo_lib_sift.h"
 #include "library.h"
 #include <cstring>
 #include <cstdio>
@@ -183,23 +182,10 @@ T centerLMA(image_double sub_img, bool clr, T& centerX, T& centerY)
 	LMTacheC<T> ellipseLMA(img_avg, P[3], P[4], radi*2, clr, w, h);
 	T rmse = ellipseLMA.minimize(P, trgData, 0.001);
 	free_image_double(img_avg);
-	T lambda1 = P[0];
-	T lambda2 = P[1];
-	T theta = P[2];
+    //T lambda1 = P[0]; T lambda2 = P[1]; T theta = P[2];
 	centerX = P[3];
 	centerY = P[4];
 	return rmse;
-}
-
-template <typename T>
-void correctInterpolatePix(image_double img_out, image_double img_in, vector<T> paramsX, vector<T> paramsY, 
-	int i, int j, T xp, T yp, int degX, int degY, int spline_order) {
-	T p1=0, p2=0;
-	undistortPixel(p1, p2, paramsX, paramsY, (T)i, (T)j, xp, yp, degX, degY);
-	T clr = interpolate_image_double(img_in, spline_order, p1+0.5, p2+0.5); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
-	if (clr < 0) clr = 0; 
-	if (clr > 255) clr = 255;
-	img_out->data[i+j*img_out->xsize] = clr;
 }
 
 template <typename T>
@@ -223,21 +209,6 @@ image_double takeSubImg(image_double IMG, T cx, T cy, T radi, int& x0, int& y0)
 	return img;
 }
 
-std::vector<int> getIdxPattern(char channel, char* pattern) {
-	std::vector<int> vidx;
-	int size = 0;
-	for (int i = 0; i < 4; i++)
-	{
-		if (pattern[i] == channel)
-		{
-			size++;
-			vidx.resize(size);
-			vidx[size-1] = i;
-		}
-	}
-	return vidx;
-}
-
 template <typename T>
 bool loadKeypts(const char* fname, std::vector<CCStats>& cc_green, std::vector<CCStats>& cc_red)
 {
@@ -258,205 +229,6 @@ bool loadKeypts(const char* fname, std::vector<CCStats>& cc_green, std::vector<C
     }
 	
 	return true;
-}
-
-template <typename T>
-void rgbProcess(char* fnameR0, char* fnameG0, char* fnameB0, char* fnameR, char* fnameG, char* fnameB, bool clr)
-{
-	T scale = 1;
-	image_double imgR = read_pgm_image_double(fnameR0);
-	image_double imgG = read_pgm_image_double(fnameG0);
-	image_double imgB = read_pgm_image_double(fnameB0);
-	printf("images data processing... \n");
-	int wi = imgG->xsize, he = imgG->ysize;
-	
-	// initilalize the channels with values from original image.
-	T maxR = 0, maxG = 0, maxB = 0;
-	T minR = 255, minG = 255, minB = 255;
-	T red, blue, green;
-	for (int i = 0; i < wi; i++) {
-		for (int j = 0; j < he; j++) {
-			red = imgR->data[i+j*wi];
-			if (red < minR) minR = red;
-			if (red > maxR) maxR = red;
-
-			blue = imgB->data[i+j*wi];
-			if (blue < minB) minB = blue;
-			if (blue > maxB) maxB = blue;
-
-			green = imgG->data[i+j*wi];
-			if (green < minG) minG = green;
-			if (green > maxG) maxG = green;
-		}
-	}
-
-	// binary image for each of the channels
-	// threshold = 0.5*(max-min);
-	printf("binarization... \n");
-	T threR = 0.6*(maxR-minR);
-	T threG = 0.6*(maxG-minG);
-	T threB = 0.6*(maxB-minB);
-	image_double imgbiR = new_image_double_ini(wi, he, 255);
-	image_double imgbiG = new_image_double_ini(wi, he, 255);
-	image_double imgbiB = new_image_double_ini(wi, he, 255);
-	for (int i = 0; i < wi; i++) {
-		for (int j = 0; j < he; j++) {
-			red = imgR->data[i+j*wi];
-			if (red <= threR) imgbiR->data[i+j*wi] = 0;
-
-			blue = imgB->data[i+j*wi];
-			if (blue <= threB) imgbiB->data[i+j*wi] = 0;
-
-			green = imgG->data[i+j*wi];
-			if (green <= threG) imgbiG->data[i+j*wi] = 0;
-
-		}
-	}
-
-	//write_pgm_image_double(imgbiR, fnameR); //"rawdata/corr_R.pgm"
-	//write_pgm_image_double(imgbiG, fnameG);
-	//write_pgm_image_double(imgbiB, fnameB);
-
-	// CC
-	printf("finding connected components... \n");
-	std::vector<CCStats> ccstatsR, ccstatsG, ccstatsB;
-	CC(ccstatsR, imgbiR, 'R');
-	CC(ccstatsG, imgbiG, 'G');
-	CC(ccstatsB, imgbiB, 'B');
-	
-	printf("\nnumber of connected components per channel R=%i G=%i B=%i\n", ccstatsR.size(), ccstatsG.size(), ccstatsB.size());
-	assert(ccstatsR.size() == ccstatsG.size() && ccstatsG.size() == ccstatsB.size());
-	printf("centers initialization for channels is done \n");
-
-	printf("\nMatching the centers... ");
-	int ntaches = ccstatsG.size();
-	vector<T> xG(ntaches), xR(ntaches), xB(ntaches);
-	vector<T> yG(ntaches), yR(ntaches), yB(ntaches);
-	vector<T> rG(ntaches), rR(ntaches), rB(ntaches);
-	xR = -1; xB = -1;
-	yR = -1; yB = -1;
-	for (int i = 0; i < ntaches; i++) {
-		T xg = ccstatsG[i].centerX;
-		T yg = ccstatsG[i].centerY;
-		int idxR = findMatch(xg, yg, ccstatsR, scale);
-		int idxB = findMatch(xg, yg, ccstatsB, scale);
-		xG[i] = xg; 
-		yG[i] = yg;
-		rG[i] = 0.5*(ccstatsG[i].radius1+ccstatsG[i].radius2);
-		if (idxR != -1) { 
-			xR[i] = ccstatsR[idxR].centerX; 
-			yR[i] = ccstatsR[idxR].centerY; 
-			rR[i] = 0.5*(ccstatsR[idxR].radius1+ccstatsR[idxR].radius2);}
-		if (idxB != -1) { 
-			xB[i] = ccstatsB[idxB].centerX; 
-			yB[i] = ccstatsB[idxB].centerY; 
-			rB[i] = 0.5*(ccstatsB[idxB].radius1+ccstatsB[idxB].radius2);}
-	}
-	printf("done.\n");
-
-	printf("LMA center redefinition for all the channels... \n");
-	for (int i = 0; i < ntaches; i++) {
-		int x0R, y0R, x0G, y0G, x0B, y0B;
-		image_double sub_imgR = takeSubImg(imgR, xR[i], yR[i], rR[i], x0R, y0R);
-		image_double sub_imgG = takeSubImg(imgG, xG[i], yG[i], rG[i], x0G, y0G);
-		image_double sub_imgB = takeSubImg(imgB, xB[i], yB[i], rB[i], x0B, y0B);
-
-		T cxR=0, cyR=0, cxG=0, cyG=0, cxB=0, cyB=0;
-		centerLMA<T>(sub_imgR, clr, cxR, cyR);
-		centerLMA<T>(sub_imgG, clr, cxG, cyG);
-		centerLMA<T>(sub_imgB, clr, cxB, cyB);
-
-		xR[i] = x0R + cxR; 
-		yR[i] = y0R + cyR;
-		xG[i] = x0G + cxG; 
-		yG[i] = y0G + cyG;
-		xB[i] = x0B + cxB; 
-		yB[i] = y0B + cyB;
-		
-		free_image_double(sub_imgR);
-		free_image_double(sub_imgG);
-		free_image_double(sub_imgB);
-
-		double percent = ((double)i / (double)ntaches)*100;
-		if (!(i % (int)(0.2*ntaches))) printf("%i%c", (int)percent+1, '%');
-		else if (!(i % (int)(0.04*ntaches))) printf(".");
-	}
-	printf(" done.\n");
-
-	printf("Obtaining correction polynomials for red and blue channels... ");
-	int degX = 11, degY = 11;
-	T xp = (T)imgG->xsize/2+0.2, yp = (T)imgG->ysize/2+0.2;
-	vector<T> polyR = getParamsCorrection(xR, yR, xG, yG, degX, degY, xp, yp);
-	vector<T> polyB = getParamsCorrection(xB, yB, xG, yG, degX, degY, xp, yp); 
-
-	//printf("\n");
-	//for (int i = 0; i < polyR.size(); i++)
-	//	printf(" %4.3f ");
-	//printf("\n");
-
-	int sizex = (degX + 1) * (degX + 2) / 2;
-	int sizey = (degY + 1) * (degY + 2) / 2;
-	vector<T> paramsXR = polyR.copyRef(0, sizex-1);
-	vector<T> paramsYR = polyR.copyRef(sizex, sizex+sizey-1);
-	vector<T> paramsXB = polyB.copyRef(0, sizex-1);
-	vector<T> paramsYB = polyB.copyRef(sizex, sizex+sizey-1);
-	printf("done.\n");
-
-	// zoom in blue and red channels by spline interpolation with order=5
-	printf("\nCorrected blue and red channels are being calculated... \n");
-	int spline_order = 3;
-	image_double imgRz = new_image_double_ini(wi, he, 255);
-	image_double imgBz = new_image_double_ini(wi, he, 255);
-	prepare_spline(imgR, spline_order);
-	prepare_spline(imgB, spline_order);
-	//for (int i = 0; i < 20; i++)
-	//{
-	//	T p1=0, p2=0;		
-	//	undistortPixel(p1, p2, paramsXR, paramsYR, xG[i], yG[i], xp, yp, degX, degY); // it will give red old center
-	//	double xR_green = p1;
-	//	double yR_green = p2;
-	//	undistortPixel(p1, p2, paramsXB, paramsYB, xG[i], yG[i], xp, yp, degX, degY); // blue old center
-	//	double xB_green = p1;
-	//	double yB_green = p2;
-	//	printf("G0-G0:	G0=(%4.3f %4.3f) \n", xG[i], yG[i]);
-	//	printf("R0-Rg:	R0=(%4.3f %4.3f)	=? Rg=(%4.3f %4.3f)\n", xR[i], yR[i], xR_green, yR_green);
-	//	printf("B0-Bg:	B0=(%4.3f %4.3f)	=? Bg=(%4.3f %4.3f)\n", xB[i], yB[i], xB_green, yB_green);
-	//	printf("========== \n");
-	//}
-
-	for (int i = 0; i < wi; i++) {
-		for (int j = 0; j < he; j++) {
-			T p1=0, p2=0;
-			undistortPixel(p1, p2, paramsXR, paramsYR, (T)i, (T)j, xp, yp, degX, degY);
-			T clr = interpolate_image_double(imgR, spline_order, p1+0.5, p2+0.5);
-			if (clr < 0) clr = 0; 
-			if (clr > 255) clr = 255;
-			imgRz->data[i+j*imgRz->xsize] = clr;
-			
-			undistortPixel(p1, p2, paramsXB, paramsYB, (T)i, (T)j, xp, yp, degX, degY);
-			clr = interpolate_image_double(imgB, spline_order, p1+0.5, p2+0.5);
-			if (clr < 0) clr = 0; 
-			if (clr > 255) clr = 255;
-			imgBz->data[i+j*imgRz->xsize] = clr;
-
-			//correctInterpolatePix(imgRz, imgR, paramsXR, paramsYR, i, j, xp, yp, degX, degY, spline_order);
-			//correctInterpolatePix(imgBz, imgB, paramsXB, paramsYB, i, j, xp, yp, degX, degY, spline_order);
-		}
-		double percent = ((double)i / (double)wi)*100;
-		if (!(i % (int)(0.2*wi))) printf("%i%c", (int)percent+1, '%');
-		else if (!(i % (int)(0.04*wi))) printf(".");
-	}
-	printf("done.\n");
-
-	printf("Saving the corrected images into file... ");
-	write_pgm_image_double(imgRz, fnameR); //"rawdata/corr_R.pgm"
-	write_pgm_image_double(imgG, fnameG);
-	write_pgm_image_double(imgBz, fnameB);
-	printf("done.\n");
-
-	free_image_double(imgR); free_image_double(imgG); free_image_double(imgB);
-	free_image_double(imgRz); free_image_double(imgBz);
-	free_image_double(imgbiR); free_image_double(imgbiG); free_image_double(imgbiB);
 }
 
 template <typename T>
@@ -580,130 +352,6 @@ void circle_redefine(image_double& imgR, image_double& imgG, image_double& imgB,
 		if (!(i % (int)(0.2*ntaches))) printf("%i%c", (int)percent+1, '%');
 		else if (!(i % (int)(0.04*ntaches))) printf(".");
 	}
-}
-
-template <typename T>
-image_double copy_interpolate(image_double in, T stepX, T stepY, int order = 3)
-{
-	image_double out = new_image_double(in->xsize, in->ysize);
-	for (int i = 0; i < in->xsize; i++)
-	{
-		for (int j = 0; j < in->ysize; j++)
-		{
-			float clr = interpolate_image_double(in, order, i+stepX, j+stepY);
-			out->data[j*out->xsize+i] = clr;
-		}
-	}
-	return out;
-}
-
-template <typename T>
-T euc_dist(T p1, T p2, T q1, T q2) {
-	return std::sqrt((q1-p1)*(q1-p1) + (q2-p2)*(q2-p2));
-}
-
-bool inlier(Match& match, const matchingslist& match_ref, float tol = 1) {
-	for (int i = 0; i < match_ref.size(); i++) 	{
-		if (euc_dist(match.x1, match.y1, match_ref[i].x1, match_ref[i].y1) <= tol)
-			return true;
-	}
-	return false;
-}
-
-void discard_false_match(matchingslist& match, const matchingslist& match_ref, float tol = 1)
-{
-	int idx = 0;
-	while (idx < match.size())
-	{
-		if (!inlier(match[idx], match_ref, tol))
-			match.erase(match.begin()+idx);
-		else
-			idx++;
-	}
-}
-
-void discard_false_match(matchingslist& match, float tol = 1, int scale = 1)
-{
-	int idx = 0;
-	while (idx < match.size())
-	{
-		if (euc_dist<float>(match[idx].x1, match[idx].y1, match[idx].x2*scale, match[idx].y2*scale) > tol)
-			match.erase(match.begin()+idx);
-		else
-			idx++;
-	}
-}
-
-float* double2float(double* ar1, int lenx, int leny)
-{
-	float* ar2 = (float*) calloc((size_t) lenx * leny, sizeof(float));
-	for (int i = 0; i < lenx*leny-1; i++)
-		ar2[i] = (float)ar1[i];
-	return ar2;
-}
-
-template <typename T>
-void keypnts_sift(image_double& imgR, image_double& imgG, image_double& imgB,
-	vector<T>& xR, vector<T>& yR, vector<T>& xGr, vector<T>& yGr, 
-	vector<T>& xB, vector<T>& yB, vector<T>& xGb, vector<T>& yGb,
-	int scale, bool clr)
-{
-	printf("\nExtracting keypoints... \n");
-	image_double imgG05 = copy_interpolate(imgG, 0.5, 0.5, 3);
-	siftPar siftparameters;
-	default_sift_parameters(siftparameters);
-	siftparameters.DoubleImSize=0;
-	keypointslist keypG, keypG05, keypB, keypR;
-	// convert double image to float type to use sift functions
-	float *fimgR = double2float(imgR->data, imgR->xsize, imgR->ysize);
-	float *fimgG = double2float(imgG->data, imgG->xsize, imgG->ysize);
-	float *fimgG05 = double2float(imgG05->data, imgG05->xsize, imgG05->ysize);
-	float *fimgB = double2float(imgB->data, imgB->xsize, imgB->ysize);
-	compute_sift_keypoints(fimgR, keypR, imgR->xsize, imgR->ysize, siftparameters);
-	std::cout<< "sift:: R image: " << keypR.size() << " keypoints"<<std::endl;
-	compute_sift_keypoints(fimgG, keypG, imgG->xsize, imgG->ysize, siftparameters);
-	std::cout<< "sift:: G image: " << keypG.size() << " keypoints"<<std::endl;
-	compute_sift_keypoints(fimgG05, keypG05, imgG05->xsize, imgG05->ysize, siftparameters);
-	std::cout<< "sift:: G05 image: " << keypG05.size() << " keypoints"<<std::endl;
-	compute_sift_keypoints(fimgB, keypB, imgB->xsize, imgB->ysize, siftparameters);
-	std::cout<< "sift:: B image: " << keypB.size() << " keypoints"<<std::endl;
-	// free float image memory
-	free((void *) fimgR); free((void *) fimgG); free((void *) fimgG05); free((void *) fimgB);
-	// compute matches
-	matchingslist match_gg05, match_gr, match_gb;
-	compute_sift_matches(keypG, keypG05, match_gg05, siftparameters);	
-	std::cout << "sift:: initial GG05 matches: " << match_gg05.size() <<std::endl;
-	compute_sift_matches(keypG, keypR, match_gr, siftparameters);
-	std::cout << "sift:: initial GR matches: " << match_gr.size() <<std::endl;
-	compute_sift_matches(keypG, keypB, match_gb, siftparameters);
-	std::cout << "sift:: initial GB matches: " << match_gb.size() <<std::endl;
-	// discard outliers
-	discard_false_match(match_gg05, 0.5);
-	std::cout << "sift:: inlier GG05 matches: " << match_gg05.size() <<std::endl;
-	discard_false_match(match_gr, 3.5, scale);
-	discard_false_match(match_gr, match_gg05, 0.5);
-	std::cout << "sift:: inlier GR matches: " << match_gr.size() <<std::endl;
-	discard_false_match(match_gb, 3.5, scale);
-	discard_false_match(match_gb, match_gg05, 0.5);
-	std::cout << "sift:: inlier GB matches: " << match_gb.size() <<std::endl;
-	// copy matches to keypoint arrays
-	int lenR = match_gr.size(), lenB = match_gb.size();
-	int lenGr = lenR, lenGb = lenB;
-	xR = xR.ones(lenR); yR = yR.ones(lenR); 
-	xB = xR.ones(lenB); yB = yR.ones(lenB);
-	xGr = xGr.ones(lenR); yGr = yGr.ones(lenR);
-	xGb = xGb.ones(lenB); yGb = yGb.ones(lenB); 
-	for (int i = 0; i < lenR; i++) {
-		xGr[i] = match_gr[i].x1;
-		yGr[i] = match_gr[i].y1;
-		xR[i] = match_gr[i].x2*scale;
-		yR[i] = match_gr[i].y2*scale; }
-	for (int i = 0; i < lenB; i++) {
-		xGb[i] = match_gb[i].x1;
-		yGb[i] = match_gb[i].y1;
-		xB[i] = match_gb[i].x2*scale;
-		yB[i] = match_gb[i].y2*scale; }
-	free_image_double(imgG05);
 }
 
 template <typename T>
@@ -923,7 +571,7 @@ void correct_channel(image_double& imgF, image_double& imgFz, vector<T>& paramsX
 }
 
 template <typename T>
-void rawProcess_alt(int argc, char ** argv, bool clr, bool test = false)
+void circuit(int argc, char ** argv, bool clr, bool test = false)
 {
 	char* fnameRGB = argv[1];
 	char* fnameR = argv[2]; 
@@ -1062,32 +710,6 @@ void save_poly(char* fname, vector<T>& paramsX, vector<T>& paramsY, const int de
 			printMono(pfile, paramsY[idx], i-j, j);
 			idx++; } }
 	fclose(pfile);
-}
-
-template <typename T>
-void testImg(int argc, char ** argv, bool clr){
-	printf("\Measuring image's RMSE... \n");
-	char* fnameR = argv[1];
-	char* fnameG = argv[2];
-	char* fnameB = argv[3];
-	T scale = 1;
-	//image_double img_bayer = read_pgm_image_double(fnameRGB);
-	//int wi = img_bayer->xsize, he = img_bayer->ysize;
-	//int wiRB = wi/2, heRB = he/2;
-	//int wiG = wiRB*scale, heG = heRB*scale;
-	//image_double imgR = new_image_double_ini(wiRB, heRB, 255);
-	//image_double imgG = new_image_double_ini(wiG, heG, 255);
-	//image_double imgB = new_image_double_ini(wiRB, heRB, 255);
-	image_double imgR = read_pgm_image_double(fnameR);
-	image_double imgG = read_pgm_image_double(fnameG);
-	image_double imgB = read_pgm_image_double(fnameB);
-	//raw2rgb<T>(img_bayer, imgR, imgG, imgB);
-	vector<T> xR, yR, xGr, yGr, xB, yB, xGb, yGb, rR, rG, rB;
-	keypnts_circle<T>(imgR, imgG, imgB, xR, yR, rR, xGr, yGr, rG, xB, yB, rB, xGb, yGb, scale, clr);
-	print_RMSE(xR, yR, xGr, yGr, xB, yB, xGb, yGb);
-
-	//free_image_double(img_bayer);
-	free_image_double(imgR); free_image_double(imgG); free_image_double(imgB);
 }
 
 template <typename T>
@@ -1306,187 +928,19 @@ void aberCorrection(int argc, char ** argv, bool clr)
 	free_image_double(imgnRz); free_image_double(imgnBz);
 }
 
-// read keypoints from files g_r.txt g_b.txt
-template <typename T>
-void txtProcess(int argc, char ** argv, bool clr)
-{
-	char* fnameRGB = argv[1];
-	char* fnameGRkey = argv[2];
-	char* fnameGBkey = argv[3];
-	char* fnameR = argv[4]; 
-	char* fnameG = argv[5];
-	char* fnameB = argv[6];
-	char* fnameXYdist = argv[7]; 
-	char* fnameXYcorr = argv[8];
-
-	T scale = 2;
-	image_double img_bayer = read_pgm_image_double(fnameRGB);
-//	image_double img_bayer2 = read_pgm_image_double(fnameRGB);
-	//image_double img_bayer = image_rotate_left<T>(img_bayer2); free_image_double(img_bayer2);
-	printf("raw data processing... \n");
-	int wi = img_bayer->xsize, he = img_bayer->ysize;
-	int wiRB = wi/2, heRB = he/2;
-	int wiG = wiRB*scale, heG = heRB*scale;
-
-	image_double imgR = new_image_double_ini(wiRB, heRB, 255);
-	image_double imgG = new_image_double_ini(wiG, heG, 255);
-	image_double imgB = new_image_double_ini(wiRB, heRB, 255);
-
-	// initilalize the channels with values from original image.
-	T maxR = 0, maxG = 0, maxB = 0;
-	T minR = 255, minG = 255, minB = 255;
-	T red, blue, green;
-	for (int i = 1; i < wiRB-1; i++) {
-		for (int j = 1; j < heRB-1; j++) {
-			red = img_bayer->data[i*2+j*2*wi];
-			if (red < minR) minR = red;
-			if (red > maxR) maxR = red;
-			imgR->data[i+j*wiRB] = red;
-
-			blue = img_bayer->data[i*2+1+(j*2+1)*wi];
-			if (blue < minB) minB = blue;
-			if (blue > maxB) maxB = blue;
-			imgB->data[i+j*wiRB] = blue;
-			
-
-			//green = 0.5*(img_bayer->data[i*2+1+j*2*wi] + img_bayer->data[i*2+(j*2+1)*wi]);
-			//if (green < minG) minG = green;
-			//if (green > maxG) maxG = green;
-			//imgG->data[i+j*wiRB] = green;
-			green = img_bayer->data[i*2+1+j*2*wi];
-			imgG->data[i*2+1+j*2*wiG] = green;
-			if (green < minG) minG = green;
-			if (green > maxG) maxG = green;
-			green = img_bayer->data[i*2+(j*2+1)*wi];
-			if (green < minG) minG = green;
-			if (green > maxG) maxG = green;
-			imgG->data[i*2+(j*2+1)*wiG] = green;
-			imgG->data[i*2+j*2*wiG] = 0.25* (img_bayer->data[(i*2+1)+j*2*wi] + img_bayer->data[i*2+(j*2+1)*wi] + 
-					img_bayer->data[(i*2-1)+j*2*wi] + img_bayer->data[i*2+(j*2-1)*wi]);
-			imgG->data[i*2+1+(j*2+1)*wiG] = 0.25* (img_bayer->data[(i*2+1)+j*2*wi] + img_bayer->data[i*2+(j*2+1)*wi] + 
-					img_bayer->data[(i*2+2)+(j*2+1)*wi] + img_bayer->data[(i*2+1)+(j*2+2)*wi]);
-		}
-	}
-
-	printf("reading keypoints from file and processing'em... \n");
-	std::vector<CCStats> ccstatsR, ccstatsGr, ccstatsGb, ccstatsB;
-	loadKeypts<T>(fnameGRkey, ccstatsGr, ccstatsR);
-	loadKeypts<T>(fnameGBkey, ccstatsGb, ccstatsB);
-	int nkeys1 = ccstatsGr.size(); 
-	int nkeys2 = ccstatsGb.size();
-	vector<T> xR(nkeys1), yR(nkeys1), xB(nkeys2), yB(nkeys2), xGr(nkeys1), yGr(nkeys1), xGb(nkeys2), yGb(nkeys2);
-	xR = -1; yR = -1;
-	xB = -1; yB = -1;
-	// copy keypoints to vector variables, match the keypoints with reference to green channel
-	T RMSE_red_dist = 0, RMSE_blue_dist = 0;
-	T mean_red_dist = 0, mean_blue_dist = 0, stddev_red_dist = 0, stddev_blue_dist = 0, dispR_dist = 0, dispB_dist = 0;
-	for (int i = 0; i < nkeys1; i++) {
-		xGr[i] = ccstatsGr[i].centerX; 
-		yGr[i] = ccstatsGr[i].centerY;
-		xR[i] = scale*ccstatsR[i].centerX;
-		yR[i] = scale*ccstatsR[i].centerY;
-		T dispR = std::sqrt((xR[i]-xGr[i])*(xR[i]-xGr[i]) + (yR[i]-yGr[i])*(yR[i]-yGr[i]));
-		if (dispR_dist < dispR) dispR_dist = dispR;
-		RMSE_red_dist += dispR*dispR;
-		mean_red_dist += dispR;
-	}
-	for (int i = 0; i < nkeys2; i++) {
-		xGb[i] = ccstatsGb[i].centerX; 
-		yGb[i] = ccstatsGb[i].centerY;
-		xB[i] = scale*ccstatsB[i].centerX;
-		yB[i] = scale*ccstatsB[i].centerY;
-		T dispB = std::sqrt((xB[i]-xGb[i])*(xB[i]-xGb[i]) + (yB[i]-yGb[i])*(yB[i]-yGb[i]));
-		if (dispB_dist < dispB) dispB_dist = dispB;
-		RMSE_blue_dist += dispB*dispB;
-		mean_blue_dist += dispB;
-	}
-	mean_red_dist /= nkeys1;
-	mean_blue_dist /= nkeys2;
-	for (int i = 1; i < nkeys1; i++)
-		stddev_red_dist += (std::sqrt((xR[i]-xGr[i])*(xR[i]-xGr[i]) + (yR[i]-yGr[i])*(yR[i]-yGr[i])) - mean_red_dist) * 
-			(std::sqrt((xR[i]-xGr[i])*(xR[i]-xGr[i]) + (yR[i]-yGr[i])*(yR[i]-yGr[i])) - mean_red_dist);
-	for (int i = 0; i < nkeys2; i++)
-		stddev_blue_dist += (std::sqrt((xB[i]-xGb[i])*(xB[i]-xGb[i]) + (yB[i]-yGb[i])*(yB[i]-yGb[i])) - mean_blue_dist) * 
-			(std::sqrt((xB[i]-xGb[i])*(xB[i]-xGb[i]) + (yB[i]-yGb[i])*(yB[i]-yGb[i])) - mean_blue_dist);
-
-	printf("distorted RMSE R-G & B-G are:	%f	%f \n", std::sqrt(RMSE_red_dist/nkeys1), std::sqrt(RMSE_blue_dist/nkeys2));
-	printf("distorted mean R-G & B-G are:	%f	%f \n", mean_red_dist, mean_blue_dist);
-	printf("distorted stdd R-G & B-G are:	%f	%f \n", std::sqrt(stddev_red_dist/nkeys1), std::sqrt(stddev_blue_dist/nkeys2));
-	printf("distorted maxd R-G & B-G are:	%f	%f \n", dispR_dist, dispB_dist);
-
-	printf("Obtaining correction polynomials for red and blue channels... ");
-	int degX = 11, degY = 11;
-	T xp = (T)imgG->xsize/2+0.2, yp = (T)imgG->ysize/2+0.2;
-	vector<T> polyR = getParamsCorrection(xR, yR, xGr, yGr, degX, degY, xp, yp);
-	vector<T> polyB = getParamsCorrection(xB, yB, xGb, yGb, degX, degY, xp, yp); 
-	int sizex = (degX + 1) * (degX + 2) / 2;
-	int sizey = (degY + 1) * (degY + 2) / 2;
-	vector<T> paramsXR = polyR.copyRef(0, sizex-1);
-	vector<T> paramsYR = polyR.copyRef(sizex, sizex+sizey-1);
-	vector<T> paramsXB = polyB.copyRef(0, sizex-1);
-	vector<T> paramsYB = polyB.copyRef(sizex, sizex+sizey-1);
-	printf("done.\n");
-
-	// zoom in blue and red channels by spline interpolation with order=5
-	printf("\nCorrected blue and red channels are being calculated... \n");
-	int spline_order = 3;
-	image_double imgRz = new_image_double_ini(wiG, heG, 255);
-	image_double imgBz = new_image_double_ini(wiG, heG, 255);
-	prepare_spline(imgR, spline_order);
-	prepare_spline(imgB, spline_order);
-	for (int i = 0; i < wiG; i++) {
-		for (int j = 0; j < heG; j++) {
-			T p1=0, p2=0;
-			undistortPixel(p1, p2, paramsXR, paramsYR, i, j, xp, yp, degX, degY);
-			T clr = interpolate_image_double(imgR, spline_order, p1/scale+0.5, p2/scale+0.5); // +0.5 to compensate -0.5 in interpolation function
-			if (clr < 0) clr = 0; 
-			if (clr > 255) clr = 255;
-			imgRz->data[i+j*imgRz->xsize] = clr;
-			
-			undistortPixel(p1, p2, paramsXB, paramsYB, i, j, xp, yp, degX, degY);
-			clr = interpolate_image_double(imgB, spline_order, p1/scale+0.5, p2/scale+0.5);
-			if (clr < 0) clr = 0; 
-			if (clr > 255) clr = 255;
-			imgBz->data[i+j*imgRz->xsize] = clr;
-		}
-		double percent = ((double)i / (double)wiG)*100;
-		if (!(i % (int)(0.2*wiG))) printf("%i%c", (int)percent+1, '%');
-		else if (!(i % (int)(0.04*wiG))) printf(".");
-	}
-	printf("done.\n");
-
-	printf("Saving the corrected images into file... ");
-	write_pgm_image_double(imgRz, fnameR); //"rawdata/corr_R.pgm"
-	write_pgm_image_double(imgG, fnameG);
-	write_pgm_image_double(imgBz, fnameB);
-	printf("done.\n");
-
-	free_image_double(img_bayer);
-	free_image_double(imgR); free_image_double(imgG); free_image_double(imgB);
-	free_image_double(imgRz); free_image_double(imgBz);
-}
-
 int main(int argc, char ** argv)
 {
 	bool clr = false; // deals with black circles on white background
 	bool test = false; // true if the image to correct is a test image to measure the correction RMSE
 
 	if (argc > 7)  // runs all circuit, change settings inside
-		rawProcess_alt<double>(argc, argv, clr, test);
+        circuit<double>(argc, argv, clr, test);
 
 	if (argc == 4) // only estimates and saves polynomial
 		polyEstimation<double>(argc, argv, clr);
 
 	if (argc == 7) // reads image and poly, corrects input and saves three corrected channels separately
 		aberCorrection<double>(argc, argv, clr);
-	// data/IMG_4326.pgm data/IMG_4324_polyR.txt data/IMG_4324_polyB.txt data/IMG_4326_R_corr.pgm data/IMG_4326_G_corr.pgm data/IMG_4326_B_corr.pgm
-	
-	// code for only ellipse center detection -> named "centeringLMA.exe" in "Ellipse detection tests"	
-	/*image_double img = read_pgm_image_double(argv[1]);
-	double cx=0, cy=0, l1 = 0, l2 = 0, th = 0;
-	centerLMA<double>(img, clr, l1, l2, th, cx, cy);	
-	free_image_double(img);
-	printf("%f %f %f %f %f", l1, l2, th, cx, cy);*/
 
 	return 0; 	
 }

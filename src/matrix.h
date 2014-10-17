@@ -20,7 +20,6 @@
 
 #include <iostream>
 #include <cassert>
-#include "alternatives.h"
 
 namespace libNumerics {
 
