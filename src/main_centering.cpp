@@ -945,6 +945,13 @@ int main(int argc, char ** argv)
 {
 	bool clr = false; // deals with black circles on white background
 	bool test = false; // true if the image to correct is a test image to measure the correction RMSE
+    printf("Program usage: \n");
+    printf("Polynomial estimation:\n");
+    printf("chromaberrat fname_raw_calib.pgm fname_poly_red.txt fname_poly_blue.txt \n\n");
+    printf("CA correction using estimated polynomial:\n");
+    printf("chromaberrat fname_raw.pgm fname_poly_red.txt fname_poly_blue.txt fname_raw_red_corr.pgm fname_raw_green_corr.pgm fname_raw_blue_corr.pgm \n\n");
+    printf("Running all circuit (polynomial estimation - image correction):\n");
+    printf("chromaberrat fname_raw_calib.pgm fname_raw_calib_red_corr.pgm fname_raw_calib_green_corr.pgm fname_raw_calib_blue_corr.pgm fname_raw_calib_keyp_dist.txt fname_raw_calib_keyp_corr.txt [fname_img_n.pgm fname_img_n_red_corr.pgm fname_img_n_green_corr.pgm fname_img_n_blue_corr.pgm, ...]\n\n");
 
 	if (argc > 7)  // runs all circuit, change settings inside
         circuit<double>(argc, argv, clr, test);
