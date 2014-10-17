@@ -2,6 +2,7 @@
 #define ABBERATION_H
 
 #include <stack>
+#include <stdio.h>
 #include "image.h"
 
 #define PI 3.14159
@@ -63,7 +64,8 @@ void extract_CCStats(std::vector<Pixel>& cc, CCStats& stats, image_double img)
 		if (cc[i].x < minX) minX = cc[i].x;
 		if (cc[i].y > maxY) maxY = cc[i].y;
 		if (cc[i].y < minY) minY = cc[i].y;
-		stats.perimeter += white_neighbors(Pixel(cc[i].x, cc[i].y), img);
+        Pixel tmp(cc[i].x, cc[i].y);
+        stats.perimeter += white_neighbors(tmp, img);
 	}
 	stats.centerX = meanX / cc.size();
 	stats.centerY = meanY / cc.size();
@@ -133,7 +135,8 @@ void CC(std::vector<CCStats>& ccstats, image_double& imgbi, char channel)
 		for (int j = 0; j < imgbi->ysize; j++) {
 			std::vector<Pixel> ccC;
 			CCStats stats;
-			int npix = extract_cc_(Pixel(i, j), ccC, imgbi);
+            Pixel tmp(i, j);
+            int npix = extract_cc_(tmp, ccC, imgbi);
 			if (npix > 180) {			
 				extract_CCStats(ccC, stats, img_copy);
 				double compactness = 4*PI*stats.nPoints / (stats.perimeter*stats.perimeter);

@@ -10,6 +10,8 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
+#include <sstream>
 
 image_double average_image(image_double img) {
 	int w = img->xsize; 
@@ -543,7 +545,7 @@ void circle_redefine(image_double& imgR, image_double& imgG, image_double& imgB,
 	vector<T>& xGr, vector<T>& yGr, vector<T>& rG, 
 	vector<T>& xB, vector<T>& yB, vector<T>& rB,
 	vector<T>& xGb, vector<T>& yGb,
-	int scale, bool clr, bool green = true)
+    int scale, bool clr, bool green = true)
 {
 	printf("\nLMA center redefinition for the channels... \n");
 	int ntaches = xR.size();
@@ -966,7 +968,11 @@ void rawProcess_alt(int argc, char ** argv, bool clr, bool test = false)
 	write_pgm_image_double(imgG, fnameG);
 	write_pgm_image_double(imgBz, fnameB);
 	
-	circle_redefine<T>(imgRz, imgG, imgBz, xR, yR, rR*scale, xGr, yGr, rG, xB, yB, rB*scale, xGb, yGb, 1, clr, false);
+    bool green_proc = false;
+    vector<T> rB_scale = rB*scale;
+    vector<T> rR_scale = rR*scale;
+    circle_redefine<T>(imgRz, imgG, imgBz, xR, yR, rR_scale,
+                       xGr, yGr, rG, xB, yB, rB_scale, xGb, yGb, 1, clr, green_proc);
 	//keypnts_sift<T>(imgRz, imgG, imgBz, xR, yR,  xGr, yGr, xB, yB, xGb, yGb, 1, clr);
 	keypnts2file(fnameXYcorr, xR, yR, xGr, yGr, xB, yB, xGb, yGb);
 	print_RMSE(xR, yR, xGr, yGr, xB, yB, xGb, yGb);
@@ -1000,7 +1006,11 @@ void rawProcess_alt(int argc, char ** argv, bool clr, bool test = false)
 		// if its test image, measure RMSE
 		if (test) {
 			//keypnts_sift<T>(imgnRz, imgnG, imgnBz, xnR, ynR,  xnGr, ynGr, xnB, ynB, xnGb, ynGb, 1, clr);
-			circle_redefine<T>(imgnRz, imgnG, imgnBz, xnR, ynR, rnR*scale, xnGr, ynGr, rnG, xnB, ynB, rnB*scale, xnGb, ynGb, 1, clr, false);
+            bool green_proc = false;
+            vector<T> rnR_scale = rnR*scale;
+            vector<T> rnB_scale = rnB*scale;
+            circle_redefine<T>(imgnRz, imgnG, imgnBz, xnR, ynR,
+                               rnR_scale, xnGr, ynGr, rnG, xnB, ynB, rnB_scale, xnGb, ynGb, 1, clr, green_proc);
 			print_RMSE(xnR, ynR, xnGr, ynGr, xnB, ynB, xnGb, ynGb);
 		}
 		// free memory
