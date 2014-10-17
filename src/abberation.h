@@ -164,8 +164,10 @@ void CC(std::vector<CCStats>& ccstats, image_double& imgbi, char channel)
 			}
 		}
 		double percent = ((double)i / (double)imgbi->xsize)*100;
-		if (!(i % (int)(0.2*imgbi->xsize))) printf("%i%c", (int)percent+1, '%');
-		else if (!(i % (int)(0.04*imgbi->xsize))) printf(".");
+        if (!(i % (int)(0.2*imgbi->xsize)))
+            printf("%i%c", (int)percent+1, '%');
+        else if (!(i % (int)(0.04*imgbi->xsize)))
+            printf(".");
 	}
 
 	// retrieve min_size and max_size to build a size histogram

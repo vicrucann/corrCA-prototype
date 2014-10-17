@@ -362,8 +362,10 @@ void circle_redefine(image_double& imgR, image_double& imgG, image_double& imgB,
 			yGb[i] = y0G + cyG; }
 
 		double percent = ((double)i / (double)ntaches)*100;
-		if (!(i % (int)(0.2*ntaches))) printf("%i%c", (int)percent+1, '%');
-		else if (!(i % (int)(0.04*ntaches))) printf(".");
+        if (!(i % (int)(0.2*ntaches)))
+            printf("%i%c", (int)percent+1, '%');
+        else if (!(i % (int)(0.04*ntaches)))
+            printf(".");
 	}
 }
 
@@ -385,20 +387,21 @@ void keypnts_circle(image_double& imgR, image_double& imgG, image_double& imgB,
 	img_extremas(imgB, minB, maxB);
 	T threR = 0.5*(maxR-minR);
 	T threG = 0.54*(maxG-minG);
-	T threB = 0.55*(maxB-minB);
+    T threB = 0.4*(maxB-minB);
 
-	image_double imgbiR = new_image_double_ini(wiRB, heRB, 255);
+    image_double imgbiR = new_image_double_ini(wiRB, heRB, 255);
 	image_double imgbiG = new_image_double_ini(wiG, heG, 255);
-	image_double imgbiB = new_image_double_ini(wiRB, heRB, 255);
+    image_double imgbiB = new_image_double_ini(wiRB, heRB, 255);
+
 	binarization(imgbiR, imgbiG, imgbiB, imgR, imgG, imgB, threR, threG, threB);
 	//write_pgm_image_double(imgbiB, "rawdata/b.pgm");
 	
 	printf("finding connected components... \n");
 	std::vector<CCStats> ccstatsR, ccstatsG, ccstatsB;
-	CC(ccstatsR, imgbiR, 'R'); printf("number = %i ", ccstatsR.size());
-	CC(ccstatsG, imgbiG, 'G'); printf("number = %i ", ccstatsG.size());
-	CC(ccstatsB, imgbiB, 'B'); printf("number = %i ", ccstatsB.size());
-	
+    CC(ccstatsR, imgbiR, 'R'); printf(" number = %i ", ccstatsR.size());
+    CC(ccstatsG, imgbiG, 'G'); printf(" number = %i ", ccstatsG.size());
+    CC(ccstatsB, imgbiB, 'B'); printf(" number = %i ", ccstatsB.size());
+
 	printf("\nnumber of connected components per channel R=%i G=%i B=%i\n", ccstatsR.size(), ccstatsG.size(), ccstatsB.size());
 	assert(ccstatsR.size() == ccstatsG.size() && ccstatsG.size() == ccstatsB.size());
 	printf("centers initialization for channels is done \n");
