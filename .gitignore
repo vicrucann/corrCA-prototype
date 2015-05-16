@@ -1,3 +1,10 @@
+# User-defined
+CMakeCache.txt
+chromaberrat
+*.cmake
+Makefile
+*.swp
+
 # Compiled Object files
 *.slo
 *.lo
