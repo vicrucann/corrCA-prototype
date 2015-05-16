@@ -29,7 +29,7 @@
 #include <iostream>
 
 
-#include "library.h"
+//#include "library.h"
 
 #define NRMAX(i,j) ( (i)<(j) ? (j):(i) )
 #define NRMIN(i,j) ( (i)<(j) ? (i):(j) )

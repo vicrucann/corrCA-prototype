@@ -19,6 +19,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "spline.h"
 #include "correction.h"
 
+#include <ios>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>

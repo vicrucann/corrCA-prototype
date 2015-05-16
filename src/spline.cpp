@@ -43,7 +43,7 @@
 // patent right holders for any other use.
 
 #include "spline.h"
-#include "library.h"
+//#include "library.h"
 #include <string.h>
 //#include "libIO/nan.h"
 #include <cmath>
