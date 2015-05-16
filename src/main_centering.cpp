@@ -364,9 +364,11 @@ void circle_redefine(image_double& imgR, image_double& imgG, image_double& imgB,
 
 		double percent = ((double)i / (double)ntaches)*100;
         if (!(i % (int)(0.2*ntaches)))
-            printf("%i%c", (int)percent+1, '%');
+	    std::cout << int(percent)+1 << "%" <<   std::flush;
+//            printf("%i%c", (int)percent+1, '%');
         else if (!(i % (int)(0.04*ntaches)))
-            printf(".");
+	     std::cout << "." <<  std::flush;
+//            printf(".");
 	}
 }
 
@@ -664,7 +666,7 @@ void circuit(int argc, char ** argv, bool clr, bool test = false)
 		correct_channel<T>(imgnR, imgnRz, paramsXR, paramsYR, spline_order, degX, degY, xp, yp, wiG, heG, scale);
 		correct_channel<T>(imgnB, imgnBz, paramsXB, paramsYB, spline_order, degX, degY, xp, yp, wiG, heG, scale);
 		// save corrected images to files	
-		printf("\Saving images to file... \n");
+		printf("\nSaving images to file... \n");
 		write_pgm_image_double(imgnRz, argv[7+i*4+1]); 
 		write_pgm_image_double(imgnG, argv[7+i*4+2]);
 		write_pgm_image_double(imgnBz, argv[7+i*4+3]);
@@ -731,7 +733,7 @@ void save_poly(char* fname, vector<T>& paramsX, vector<T>& paramsY, const int de
 
 template <typename T>
 void polyEstimation(int argc, char ** argv, bool clr) {
-	printf("\Polynomial estimation... \n");
+	printf("\nPolynomial estimation... \n");
 	char* fnameRGB = argv[1];
 	char* fnamePolyR = argv[2]; 
 	char* fnamePolyB = argv[3]; 
@@ -900,7 +902,7 @@ vector<T> read_poly(char* fname, int& degX, int& degY) {
 template <typename T>
 void aberCorrection(int argc, char ** argv, bool clr)
 {
-	printf("\Aberration correction... \n");
+	printf("\nAberration correction... \n");
 	char* fnameRGB = argv[1];
 	char* fnamePolyR = argv[2]; 
 	char* fnamePolyB = argv[3]; 
@@ -935,7 +937,7 @@ void aberCorrection(int argc, char ** argv, bool clr)
 	T xp = (T)imgnG->xsize/2+0.2, yp = (T)imgnG->ysize/2+0.2;
 	correct_channel<T>(imgnR, imgnRz, paramsXR, paramsYR, spline_order, degX, degY, xp, yp, wiG, heG, scale);
 	correct_channel<T>(imgnB, imgnBz, paramsXB, paramsYB, spline_order, degX, degY, xp, yp, wiG, heG, scale);
-	printf("\Saving images to file... \n");
+	printf("\nSaving images to file... \n");
 	write_pgm_image_double(imgnRz, fnameR); 
 	write_pgm_image_double(imgnG, fnameG);
 	write_pgm_image_double(imgnBz, fnameB);
